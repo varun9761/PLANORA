@@ -1374,10 +1374,13 @@ def fetch_osm_restaurants(destination: str, city_name: str, lat: float, lon: flo
 # HTTP ROUTES
 # ════════════════════════════════════════════════════════════════
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 @app.route("/")
 def index():
     """Serve the frontend index.html."""
-    return send_from_directory(".", "index.html")
+    return send_from_directory(BASE_DIR, "index.html")
 
 
 @app.route("/search-destinations", methods=["GET"])
@@ -1476,8 +1479,9 @@ def suggestions():
 @app.route("/<path:path>")
 def static_proxy(path):
     """Serve static assets (style.css, app-enhanced.js, etc.)."""
-    if os.path.exists(os.path.join(".", path)):
-        return send_from_directory(".", path)
+    file_path = os.path.join(BASE_DIR, path)
+    if os.path.exists(file_path):
+        return send_from_directory(BASE_DIR, path)
     return jsonify({"error": "Resource not found"}), 404
 
 
