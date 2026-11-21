@@ -241,6 +241,31 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  document.addEventListener(
+    "touchstart",
+    (event) => {
+      if (
+        !destinationSuggestions?.contains(event.target) &&
+        event.target !== destInput
+      ) {
+        hideDestinationSuggestions();
+      }
+    },
+    { passive: true },
+  );
+
+  // Automatically dismiss suggestions as soon as user focuses on dates or budget
+  startInput?.addEventListener("focus", hideDestinationSuggestions);
+  endInput?.addEventListener("focus", hideDestinationSuggestions);
+  form.budget?.addEventListener("focus", hideDestinationSuggestions);
+  submitBtn?.addEventListener("focus", hideDestinationSuggestions);
+
+  destInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideDestinationSuggestions();
+    }
+  });
+
   loginLink?.addEventListener("click", (event) => {
     event.preventDefault();
     if (currentUser) {
@@ -675,15 +700,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     destinationSuggestions.hidden = false;
-    destinationSuggestions.innerHTML = results
+    const itemsHtml = results
+      .slice(0, 5)
       .map(
         (item) => `
           <button type="button" class="destination-option" data-value="${item.display_name.replace(/"/g, "&quot;")}">
-            <strong>${englishText(item.city, englishText(item.country, englishText(item.display_name, "Destination")))}</strong>
+            <strong>📍 ${englishText(item.city, englishText(item.country, englishText(item.display_name, "Destination")))}</strong>
             <span>${item.state ? `${englishText(item.state, "")}, ` : ""}${englishText(item.country, "")}</span>
           </button>`,
       )
       .join("");
+
+    destinationSuggestions.innerHTML = `
+      <div class="dest-suggestions-header">
+        <span class="dest-suggestions-title">Suggested Places</span>
+        <button type="button" class="dest-suggestions-close" id="close-dest-suggestions" aria-label="Close suggestions">✕</button>
+      </div>
+      <div class="dest-suggestions-list">
+        ${itemsHtml}
+      </div>
+    `;
+
+    document
+      .getElementById("close-dest-suggestions")
+      ?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideDestinationSuggestions();
+      });
 
     destinationSuggestions
       .querySelectorAll(".destination-option")
@@ -691,6 +734,8 @@ document.addEventListener("DOMContentLoaded", () => {
         button.addEventListener("click", () => {
           destInput.value = button.dataset.value || "";
           hideDestinationSuggestions();
+          // Auto focus next field (startDate)
+          startInput?.focus();
         });
       });
   }
