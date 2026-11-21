@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <title>Planora - Smart Travel Planner</title>
+  </head>
+  <body>
+    <!-- NAVBAR -->
+    <header class="navbar">
+      <h1 class="logo">🌍 Planora</h1>
+      <nav>
+        <a href="#">Home</a>
+        <a href="#recent-trips" id="my-trips-link">My Trips</a>
+        <a href="#auth" id="login-link">Login</a>
+        <button
+          type="button"
+          class="theme-toggle"
+          id="theme-toggle"
+          aria-label="Toggle dark mode"
+        >
+          Dark Mode
+        </button>
+      </nav>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero">
+      <h2>Smarter Travel Starts Here 🌍</h2>
+      <p>
+        Real itineraries powered by live weather, attractions &amp; local data
+      </p>
+      <div class="api-badges">
+        <span class="badge">🌤️ Open-Meteo</span>
+        <span class="badge">📍 OpenTripMap</span>
+        <span class="badge">🗺️ OpenStreetMap</span>
+      </div>
+    </section>
+
+    <!-- PLANNER FORM -->
+    <section class="planner">
+      <h2>Create Your Trip</h2>
+
+      <div class="account-banner">
+        <div>
+          <strong id="auth-summary"
+            >Login to save and revisit your recent trips.</strong
+          >
+          <p>
+            Your recent trips are stored in this browser using local storage.
+          </p>
+        </div>
+        <div class="account-actions">
+          <button type="button" class="secondary-btn" id="auth-action">
+            Login or sign up
+          </button>
+          <button type="button" class="secondary-btn" id="logout-btn" hidden>
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <form class="trip-form" id="trip-form">
+        <input
+          type="text"
+          id="dest"
+          name="destination"
+          placeholder="Destination (e.g. Goa, Paris, Manali)"
+          required
+        />
+        <div
+          id="destination-suggestions"
+          class="destination-suggestions"
+          hidden
+        ></div>
+        <input type="date" name="startDate" required />
+        <input type="date" name="endDate" required />
+        <input
+          type="number"
+          name="budget"
+          placeholder="Budget (₹)"
+          min="0"
+          required
+        />
+        <button type="submit" id="submit-btn">
+          <span class="btn-text">Generate Plan</span>
+          <span class="btn-spinner" hidden></span>
+        </button>
+      </form>
+
+      <!-- Quick Trending Destination Chips -->
+      <div class="trending-destinations">
+        <span class="trending-label">Popular:</span>
+        <button type="button" class="dest-chip" data-dest="Amritsar, India" data-budget="20000">✨ Amritsar</button>
+        <button type="button" class="dest-chip" data-dest="Paris, France" data-budget="150000">🗼 Paris</button>
+        <button type="button" class="dest-chip" data-dest="Tokyo, Japan" data-budget="180000">⛩️ Tokyo</button>
+        <button type="button" class="dest-chip" data-dest="Goa, India" data-budget="30000">🌴 Goa</button>
+        <button type="button" class="dest-chip" data-dest="Rome, Italy" data-budget="160000">🏰 Rome</button>
+        <button type="button" class="dest-chip" data-dest="New York, USA" data-budget="220000">🗽 New York</button>
+        <button type="button" class="dest-chip" data-dest="Bali, Indonesia" data-budget="75000">🏖️ Bali</button>
+      </div>
+
+      <!-- Loading overlay — shown while fetching -->
+      <div id="loading-overlay" class="loading-overlay" hidden>
+        <div class="spinner"></div>
+        <p id="loading-msg">Fetching your trip plan…</p>
+      </div>
+
+      <!-- Action bar for export & share (positioned above results) -->
+      <div id="trip-actions-bar" class="trip-actions-bar" hidden>
+        <div class="trip-actions-info">
+          <h3 id="trip-header-title">Your Custom Itinerary</h3>
+          <p id="trip-header-subtitle">Plan generated &amp; ready to share</p>
+        </div>
+        <div class="trip-actions-btns">
+          <button type="button" id="print-itinerary-btn" class="action-btn print-btn">
+            🖨️ Export PDF / Print
+          </button>
+          <button type="button" id="share-itinerary-btn" class="action-btn share-btn">
+            📋 Share / Copy Summary
+          </button>
+        </div>
+      </div>
+
+      <!-- Results Dashboard Grid -->
+      <div id="results-dashboard" class="results-dashboard">
+        <!-- Top Overview Row: Weather & Destination Intel -->
+        <div class="results-top-row">
+          <div id="weather" class="weather-box"></div>
+          <div id="insights-panel" class="insights-panel"></div>
+        </div>
+
+        <!-- Main 2-Column Dashboard Split -->
+        <div class="results-grid">
+          <!-- Left Column: Tour Itinerary & Hotel/Dining Recommendations -->
+          <div class="results-col-main">
+            <div id="timeline"></div>
+            <div id="suggestions"></div>
+          </div>
+
+          <!-- Right Column: Interactive Map, Budget & Smart Packing -->
+          <div class="results-col-side">
+            <div class="map-container-card" id="map-wrapper" hidden>
+              <div class="map-header-row">
+                <h3 class="map-heading">🗺️ Destination Map</h3>
+                <div id="map-filter-bar" class="map-filter-bar" hidden>
+                  <span class="filter-label">Filters:</span>
+                  <button type="button" class="map-filter-btn active" data-filter="all">All (<span id="count-all">0</span>)</button>
+                  <button type="button" class="map-filter-btn" data-filter="attractions">📍 Sights (<span id="count-attractions">0</span>)</button>
+                  <button type="button" class="map-filter-btn" data-filter="hotels">🏨 Hotels (<span id="count-hotels">0</span>)</button>
+                  <button type="button" class="map-filter-btn" data-filter="restaurants">🍽️ Food (<span id="count-restaurants">0</span>)</button>
+                </div>
+              </div>
+              <div id="map"></div>
+            </div>
+            <div id="budget-tracker"></div>
+            <div id="packing-checklist" class="packing-checklist" hidden></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Toast notification -->
+      <div id="toast" class="toast" hidden></div>
+    </section>
+
+    <section class="planner recent-trips-section" id="recent-trips">
+      <h2>Recent Trips</h2>
+      <p class="recent-trips-copy">
+        Your saved trips appear here after you log in and generate a plan.
+      </p>
+      <p id="recent-trips-empty" class="warn-msg">
+        Login to save recent trips to this browser.
+      </p>
+      <div id="recent-trips-list" class="recent-trips-grid"></div>
+    </section>
+
+    <div id="auth-modal" class="modal-backdrop" hidden>
+      <div class="auth-modal-card">
+        <button type="button" class="modal-close" id="close-auth">x</button>
+        <h3 id="auth-title">Login to Planora</h3>
+        <form id="auth-form" class="auth-form">
+          <div id="auth-name-field" hidden>
+            <label for="auth-name">Name</label>
+            <input id="auth-name" type="text" autocomplete="name" />
+          </div>
+          <div>
+            <label for="auth-email">Email</label>
+            <input id="auth-email" type="email" autocomplete="email" required />
+          </div>
+          <div>
+            <label for="auth-password">Password</label>
+            <input
+              id="auth-password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <p id="auth-error" class="auth-error"></p>
+          <button type="submit">Login</button>
+        </form>
+        <button type="button" class="auth-toggle" id="auth-toggle">
+          New here? Create an account
+        </button>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer>
+      <div class="footer-inner">
+        <p>© 2026 Planora • Smart Travel Planner</p>
+        <p class="powered-by">
+          Powered by
+          <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> ·
+          <a href="https://opentripmap.com" target="_blank">OpenTripMap</a> ·
+          <a href="https://www.openstreetmap.org" target="_blank"
+            >OpenStreetMap</a
+          >
+        </p>
+      </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app-enhanced.js"></script>
+  </body>
+</html>
