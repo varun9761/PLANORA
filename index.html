@@ -71,15 +71,18 @@
 
       <form class="trip-form" id="trip-form">
         <div class="form-field-group form-dest-group">
-          <span class="field-icon" aria-hidden="true">📍</span>
-          <input
-            type="text"
-            id="dest"
-            name="destination"
-            placeholder="Destination (e.g. Amritsar, Paris, Goa)"
-            autocomplete="off"
-            required
-          />
+          <label for="dest" class="field-mini-label">DESTINATION</label>
+          <div class="input-inner-wrap">
+            <span class="field-icon" aria-hidden="true">📍</span>
+            <input
+              type="text"
+              id="dest"
+              name="destination"
+              placeholder="Where to? (e.g. Amritsar, Paris)"
+              autocomplete="off"
+              required
+            />
+          </div>
           <div
             id="destination-suggestions"
             class="destination-suggestions"
@@ -89,26 +92,37 @@
 
         <div class="form-dates-row">
           <div class="form-field-group form-date-group">
-            <span class="field-icon" aria-hidden="true">📅</span>
-            <input type="date" name="startDate" id="start-date" required aria-label="Start Date" />
+            <label for="start-date" class="field-mini-label">START DATE</label>
+            <div class="input-inner-wrap">
+              <span class="field-icon" aria-hidden="true">📅</span>
+              <input type="date" name="startDate" id="start-date" required aria-label="Start Date" />
+              <span class="date-placeholder-text" id="start-date-placeholder">Select date</span>
+            </div>
           </div>
           <div class="form-field-group form-date-group">
-            <span class="field-icon" aria-hidden="true">🏁</span>
-            <input type="date" name="endDate" id="end-date" required aria-label="End Date" />
+            <label for="end-date" class="field-mini-label">END DATE</label>
+            <div class="input-inner-wrap">
+              <span class="field-icon" aria-hidden="true">🏁</span>
+              <input type="date" name="endDate" id="end-date" required aria-label="End Date" />
+              <span class="date-placeholder-text" id="end-date-placeholder">Select date</span>
+            </div>
           </div>
         </div>
 
         <div class="form-field-group form-budget-group">
-          <span class="field-icon" aria-hidden="true">💰</span>
-          <input
-            type="number"
-            name="budget"
-            id="budget-input"
-            placeholder="Budget (₹)"
-            min="0"
-            required
-            aria-label="Budget in INR"
-          />
+          <label for="budget-input" class="field-mini-label">BUDGET (₹ INR)</label>
+          <div class="input-inner-wrap">
+            <span class="field-icon" aria-hidden="true">💰</span>
+            <input
+              type="number"
+              name="budget"
+              id="budget-input"
+              placeholder="Budget in ₹ (e.g. 25,000)"
+              min="0"
+              required
+              aria-label="Budget in INR"
+            />
+          </div>
         </div>
 
         <button type="submit" id="submit-btn" class="form-submit-btn">

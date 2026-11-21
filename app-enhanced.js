@@ -71,6 +71,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const endInput = form.querySelector('input[name="endDate"]');
   if (startInput) startInput.min = todayStr;
   if (endInput) endInput.min = todayStr;
+  function updateDatePlaceholderStates() {
+    const startP = document.getElementById("start-date-placeholder");
+    const endP = document.getElementById("end-date-placeholder");
+    if (startInput) {
+      const hasVal = Boolean(startInput.value);
+      startInput.classList.toggle("has-value", hasVal);
+      if (startP) startP.style.display = hasVal ? "none" : "block";
+    }
+    if (endInput) {
+      const hasVal = Boolean(endInput.value);
+      endInput.classList.toggle("has-value", hasVal);
+      if (endP) endP.style.display = hasVal ? "none" : "block";
+    }
+  }
+
   startInput?.addEventListener("change", () => {
     if (startInput.value && endInput) {
       endInput.min = startInput.value;
@@ -78,7 +93,14 @@ document.addEventListener("DOMContentLoaded", () => {
         endInput.value = startInput.value;
       }
     }
+    updateDatePlaceholderStates();
   });
+  startInput?.addEventListener("input", updateDatePlaceholderStates);
+  endInput?.addEventListener("change", updateDatePlaceholderStates);
+  endInput?.addEventListener("input", updateDatePlaceholderStates);
+
+  // Initialize placeholder visibility on start
+  updateDatePlaceholderStates();
 
   // Popular Trending Destination Chips
   document.querySelectorAll(".dest-chip").forEach((chip) => {
@@ -95,6 +117,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (form.startDate) form.startDate.value = start.toISOString().split("T")[0];
       if (form.endDate) form.endDate.value = end.toISOString().split("T")[0];
+
+      updateDatePlaceholderStates();
 
       chip.classList.add("chip-pulse");
       setTimeout(() => chip.classList.remove("chip-pulse"), 400);
@@ -632,6 +656,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (form.startDate) form.startDate.value = trip.startDate || "";
       if (form.endDate) form.endDate.value = trip.endDate || "";
       if (form.budget) form.budget.value = trip.budget || "";
+      updateDatePlaceholderStates();
       form.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   });
