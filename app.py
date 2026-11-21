@@ -1378,6 +1378,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @app.route("/")
+@app.route("/api")
+@app.route("/api/index")
 def index():
     """Serve the frontend index.html."""
     return send_from_directory(BASE_DIR, "index.html")
