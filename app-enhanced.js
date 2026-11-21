@@ -490,9 +490,19 @@ document.addEventListener("DOMContentLoaded", () => {
     currentTheme = theme === "dark" ? "dark" : "light";
     document.body.classList.toggle("dark-mode", currentTheme === "dark");
     if (themeToggle) {
-      themeToggle.textContent =
-        currentTheme === "dark" ? "Light Mode" : "Dark Mode";
-      themeToggle.setAttribute("aria-pressed", String(currentTheme === "dark"));
+      const isDark = currentTheme === "dark";
+      const icon = isDark ? "☀️" : "🌙";
+      const label = isDark ? "Light Mode" : "Dark Mode";
+      const iconEl = themeToggle.querySelector(".theme-icon");
+      const textEl = themeToggle.querySelector(".theme-text");
+      if (iconEl && textEl) {
+        iconEl.textContent = icon;
+        textEl.textContent = label;
+      } else {
+        themeToggle.textContent = `${icon} ${label}`;
+      }
+      themeToggle.setAttribute("aria-pressed", String(isDark));
+      themeToggle.setAttribute("aria-label", label);
     }
   }
 
@@ -959,6 +969,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("map");
     if (!container) return;
 
+    if (map) {
+      try {
+        map.remove();
+      } catch (err) {
+        console.warn("Error removing previous map instance:", err);
+      }
+      map = null;
+    }
+
     const mapWrapper = document.getElementById("map-wrapper");
     if (mapWrapper) mapWrapper.hidden = false;
 
@@ -1362,4 +1381,81 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 300);
     }, 3200);
   }
+
+  // ── MOBILE BOTTOM NAVIGATION ──────────────────────────────
+  const mobileNavItems = document.querySelectorAll(".mobile-nav-item");
+
+  function scrollToMobileSection(targetId) {
+    const targetEl = document.getElementById(targetId);
+    if (!targetEl) return;
+
+    if (targetId === "map-wrapper" && targetEl.hidden) {
+      targetEl.hidden = false;
+    }
+
+    const navOffset = 64;
+    const elementPosition = targetEl.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - navOffset;
+
+    window.scrollTo({
+      top: Math.max(0, offsetPosition),
+      behavior: "smooth",
+    });
+
+    if (targetId === "map-wrapper" && map) {
+      setTimeout(() => map.invalidateSize(), 300);
+    }
+  }
+
+  mobileNavItems.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.target;
+      mobileNavItems.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      scrollToMobileSection(targetId);
+    });
+  });
+
+  // Scroll Spy for Mobile Nav Bar
+  let scrollThrottleTimer = null;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (window.innerWidth > 768) return;
+      if (scrollThrottleTimer) return;
+      scrollThrottleTimer = setTimeout(() => {
+        scrollThrottleTimer = null;
+        const sectionIds = [
+          "budget-tracker",
+          "packing-checklist",
+          "map-wrapper",
+          "timeline",
+          "trip-form",
+        ];
+        for (const id of sectionIds) {
+          const el = document.getElementById(id);
+          if (el && !el.hidden) {
+            const rect = el.getBoundingClientRect();
+            if (rect.top <= 250 && rect.bottom >= 120) {
+              mobileNavItems.forEach((btn) => {
+                btn.classList.toggle("active", btn.dataset.target === id);
+              });
+              break;
+            }
+          }
+        }
+      }, 100);
+    },
+    { passive: true },
+  );
+
+  // Invalidate Leaflet map size on screen resize & orientation change
+  window.addEventListener("resize", () => {
+    if (map) map.invalidateSize();
+  });
+  window.addEventListener("orientationchange", () => {
+    setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 280);
+  });
 });

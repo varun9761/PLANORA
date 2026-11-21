@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -13,18 +13,22 @@
   <body>
     <!-- NAVBAR -->
     <header class="navbar">
-      <h1 class="logo">🌍 Planora</h1>
-      <nav>
-        <a href="#">Home</a>
-        <a href="#recent-trips" id="my-trips-link">My Trips</a>
-        <a href="#auth" id="login-link">Login</a>
+      <div class="navbar-brand">
+        <h1 class="logo">🌍 Planora</h1>
+      </div>
+      <nav class="nav-links">
+        <a href="#" class="nav-link home-link">Home</a>
+        <a href="#recent-trips" id="my-trips-link" class="nav-link trips-link">✈️ My Trips</a>
+        <a href="#auth" id="login-link" class="nav-link login-link">👤 Login</a>
         <button
           type="button"
           class="theme-toggle"
           id="theme-toggle"
           aria-label="Toggle dark mode"
+          title="Toggle Dark Mode"
         >
-          Dark Mode
+          <span class="theme-icon">🌙</span>
+          <span class="theme-text">Dark Mode</span>
         </button>
       </nav>
     </header>
@@ -66,29 +70,49 @@
       </div>
 
       <form class="trip-form" id="trip-form">
-        <input
-          type="text"
-          id="dest"
-          name="destination"
-          placeholder="Destination (e.g. Goa, Paris, Manali)"
-          required
-        />
-        <div
-          id="destination-suggestions"
-          class="destination-suggestions"
-          hidden
-        ></div>
-        <input type="date" name="startDate" required />
-        <input type="date" name="endDate" required />
-        <input
-          type="number"
-          name="budget"
-          placeholder="Budget (₹)"
-          min="0"
-          required
-        />
-        <button type="submit" id="submit-btn">
-          <span class="btn-text">Generate Plan</span>
+        <div class="form-field-group form-dest-group">
+          <span class="field-icon" aria-hidden="true">📍</span>
+          <input
+            type="text"
+            id="dest"
+            name="destination"
+            placeholder="Destination (e.g. Amritsar, Paris, Goa)"
+            autocomplete="off"
+            required
+          />
+          <div
+            id="destination-suggestions"
+            class="destination-suggestions"
+            hidden
+          ></div>
+        </div>
+
+        <div class="form-dates-row">
+          <div class="form-field-group form-date-group">
+            <span class="field-icon" aria-hidden="true">📅</span>
+            <input type="date" name="startDate" id="start-date" required aria-label="Start Date" />
+          </div>
+          <div class="form-field-group form-date-group">
+            <span class="field-icon" aria-hidden="true">🏁</span>
+            <input type="date" name="endDate" id="end-date" required aria-label="End Date" />
+          </div>
+        </div>
+
+        <div class="form-field-group form-budget-group">
+          <span class="field-icon" aria-hidden="true">💰</span>
+          <input
+            type="number"
+            name="budget"
+            id="budget-input"
+            placeholder="Budget (₹)"
+            min="0"
+            required
+            aria-label="Budget in INR"
+          />
+        </div>
+
+        <button type="submit" id="submit-btn" class="form-submit-btn">
+          <span class="btn-text">Generate Plan 🚀</span>
           <span class="btn-spinner" hidden></span>
         </button>
       </form>
@@ -157,6 +181,7 @@
                 </div>
               </div>
               <div id="map"></div>
+              <p class="map-touch-hint">💡 Tip: Pinch or use two fingers to move &amp; explore map.</p>
             </div>
             <div id="budget-tracker"></div>
             <div id="packing-checklist" class="packing-checklist" hidden></div>
@@ -224,6 +249,30 @@
         </p>
       </div>
     </footer>
+
+    <!-- MOBILE BOTTOM APP NAVIGATION BAR -->
+    <nav class="mobile-nav-bar" id="mobile-nav-bar" aria-label="Mobile Navigation">
+      <button type="button" class="mobile-nav-item active" data-target="trip-form">
+        <span class="mobile-nav-icon">🔍</span>
+        <span class="mobile-nav-label">Plan</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-target="timeline">
+        <span class="mobile-nav-icon">📅</span>
+        <span class="mobile-nav-label">Itinerary</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-target="map-wrapper">
+        <span class="mobile-nav-icon">🗺️</span>
+        <span class="mobile-nav-label">Map</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-target="packing-checklist">
+        <span class="mobile-nav-icon">🎒</span>
+        <span class="mobile-nav-label">Packing</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-target="budget-tracker">
+        <span class="mobile-nav-icon">💰</span>
+        <span class="mobile-nav-label">Budget</span>
+      </button>
+    </nav>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="app-enhanced.js"></script>
