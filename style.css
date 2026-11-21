@@ -1137,22 +1137,63 @@ body.dark-mode .date-placeholder-text {
 }
 
 .form-dest-group {
-  flex: 2 1 230px;
   position: relative;
+  width: 100%;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
 }
 
 .form-dates-row {
   display: flex;
   gap: 0.45rem;
-  flex: 2 1 250px;
+  width: 100%;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
 }
 
 .form-date-group {
-  flex: 1 1 115px;
+  flex: 1 1 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
 }
 
 .form-budget-group {
-  flex: 1 1 135px;
+  width: 100%;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+}
+
+@media (min-width: 1025px) {
+  .trip-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    align-items: flex-end;
+  }
+
+  .form-dest-group {
+    flex: 2 1 230px;
+    width: auto;
+  }
+
+  .form-dates-row {
+    flex: 2 1 250px;
+    width: auto;
+  }
+
+  .form-date-group {
+    flex: 1 1 115px;
+    width: auto;
+  }
+
+  .form-budget-group {
+    flex: 1 1 135px;
+    width: auto;
+  }
 }
 
 .trip-form input {
@@ -2828,6 +2869,9 @@ body.dark-mode .map-touch-hint {
 
   .form-dest-group {
     grid-column: span 2;
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 0;
   }
 
   .form-dates-row {
@@ -2835,10 +2879,16 @@ body.dark-mode .map-touch-hint {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.45rem;
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 0;
   }
 
   .form-budget-group {
     grid-column: span 1;
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 0;
   }
 
   .form-submit-btn {
@@ -3094,19 +3144,36 @@ body.dark-mode .map-touch-hint {
 
   /* Form */
   .trip-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem; /* Ultra-compact gap */
-    padding: 0.65rem 0.6rem;
-    border-radius: 0.95rem;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.35rem !important; /* Ultra-compact gap */
+    padding: 0.65rem 0.6rem !important;
+    border-radius: 0.95rem !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .form-dest-group,
+  .form-dates-row,
+  .form-budget-group,
+  .form-submit-btn {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
   }
 
   .form-field-group {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.1rem !important;
     margin: 0 !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   .field-mini-label {
@@ -3124,40 +3191,44 @@ body.dark-mode .map-touch-hint {
   }
 
   .form-dates-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.35rem; /* Ultra-compact gap between start & end dates */
-    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.35rem !important; /* Ultra-compact gap between start & end dates */
+    width: 100% !important;
     margin: 0 !important;
   }
 
-  .form-dates-row .form-field-group {
-    width: 100%;
+  .form-dates-row .form-field-group,
+  .form-dates-row .form-date-group {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   .trip-form input {
-    min-height: 42px;
-    font-size: 15px;
-    padding: 0.45rem 0.65rem 0.45rem 2.35rem;
-    border-radius: 0.7rem;
+    min-height: 42px !important;
+    font-size: 15px !important;
+    padding: 0.45rem 0.65rem 0.45rem 2.35rem !important;
+    border-radius: 0.7rem !important;
   }
 
   .input-inner-wrap .field-icon {
-    left: 0.75rem;
-    font-size: 0.95rem;
+    left: 0.75rem !important;
+    font-size: 0.95rem !important;
   }
 
   .date-placeholder-text {
-    left: 2.35rem;
-    font-size: 0.84rem;
+    left: 2.35rem !important;
+    font-size: 0.84rem !important;
   }
 
   .form-submit-btn {
-    width: 100%;
-    min-height: 44px;
-    font-size: 0.95rem;
-    margin-top: 0.15rem;
-    border-radius: 0.75rem;
+    width: 100% !important;
+    min-height: 44px !important;
+    font-size: 0.95rem !important;
+    margin-top: 0.15rem !important;
+    border-radius: 0.75rem !important;
   }
 
   /* Trending Chips Carousel */
