@@ -42,6 +42,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const tripActionsBar = document.getElementById("trip-actions-bar");
   const printBtn = document.getElementById("print-itinerary-btn");
   const shareBtn = document.getElementById("share-itinerary-btn");
+  const exportIcsBtn = document.getElementById("export-ics-btn");
+  const travelStyleInput = document.getElementById("travel-style-input");
+  const tripPaceInput = document.getElementById("trip-pace-input");
   const packingChecklist = document.getElementById("packing-checklist");
   const mapFilterBar = document.getElementById("map-filter-bar");
   const toast = document.getElementById("toast");
@@ -50,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let map = null;
   let lastPlanData = null;
+  let unusedAttractionsPool = [];
   let markerGroups = {
     attractions: [],
     hotels: [],
@@ -129,6 +133,49 @@ document.addEventListener("DOMContentLoaded", () => {
   // Print / PDF Export
   printBtn?.addEventListener("click", () => {
     window.print();
+  });
+
+  // Personalization Pills (Travel Style & Trip Pace)
+  document.querySelectorAll(".pref-pill").forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const prefType = pill.dataset.prefType;
+      const val = pill.dataset.value;
+      document
+        .querySelectorAll(`.pref-pill[data-pref-type="${prefType}"]`)
+        .forEach((p) => p.classList.remove("active"));
+      pill.classList.add("active");
+      if (prefType === "style" && travelStyleInput) {
+        travelStyleInput.value = val;
+      } else if (prefType === "pace" && tripPaceInput) {
+        tripPaceInput.value = val;
+      }
+    });
+  });
+
+  // 1-Click Calendar (.ics) Export
+  exportIcsBtn?.addEventListener("click", () => {
+    if (!lastPlanData || !Array.isArray(lastPlanData.itinerary)) {
+      showToast("⚠️ Generate a trip plan first to export to calendar!");
+      return;
+    }
+    const icsContent = generateICSContent(
+      lastPlanData,
+      destInput.value.trim(),
+      form.startDate.value,
+    );
+    const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (destInput.value.trim() || "trip")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-");
+    a.href = url;
+    a.download = `planora-${safeName}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("📅 Calendar file (.ics) downloaded! Import into Google/Apple Calendar.");
   });
 
   // Robust Cross-Browser Clipboard Helper
@@ -382,8 +429,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const numDays = Math.floor(diffMs / 86400000) + 1;
 
+    const travelStyle = travelStyleInput?.value || "solo";
+    const pace = tripPaceInput?.value || "balanced";
+
     clearResults();
-    setLoading(true, `Building your trip for ${destination}...`);
+    setLoading(true, `Building your ${travelStyle} trip for ${destination}...`);
 
     try {
       const planRes = await fetch(`${API_BASE}/plan-trip`, {
@@ -395,6 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
           endDate,
           budget,
           numDays,
+          travelStyle,
+          pace,
         }),
       });
       const planData = await planRes.json();
@@ -404,15 +456,19 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      unusedAttractionsPool = Array.isArray(planData.unusedAttractions)
+        ? [...planData.unusedAttractions]
+        : [];
+      lastPlanData = planData;
+
       renderWeather(planData.weather, destination, weatherBox);
       renderInsights(
         planData.destinationMeta,
         planData.countryInsights,
         insightsPanel,
       );
-      renderItinerary(planData.itinerary, timeline);
+      renderItinerary(planData.itinerary, timeline, planData.modelMeta);
 
-      lastPlanData = planData;
       if (tripActionsBar) {
         tripActionsBar.hidden = false;
         const hTitle = document.getElementById("trip-header-title");
@@ -438,6 +494,7 @@ document.addEventListener("DOMContentLoaded", () => {
         budgetSection,
         planData.currency,
         planData.countryInsights,
+        planData.budgetIntelligence,
       );
 
       if (planData.coordinates?.lat && planData.coordinates?.lon) {
@@ -822,16 +879,26 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>`;
   }
 
-  function renderItinerary(itinerary, container) {
+  function renderItinerary(itinerary, container, modelMeta = null) {
     if (!Array.isArray(itinerary) || !itinerary.length) {
       container.innerHTML = `<p class="warn-msg">No itinerary returned for this destination.</p>`;
       return;
     }
 
-    let html = `<h3 class="section-label">Day-by-Day Tour Itinerary</h3><div class="itinerary-timeline">`;
+    const engineBadge = modelMeta?.engine
+      ? `<span class="model-engine-badge">${modelMeta.aiPowered ? "✨" : "🧭"} ${englishText(modelMeta.engine, "Smart Routing")}</span>`
+      : "";
+
+    let html = `
+      <div class="section-label-row">
+        <h3 class="section-label">Day-by-Day Tour Itinerary</h3>
+        ${engineBadge}
+      </div>
+      <div class="itinerary-timeline">`;
+
     itinerary.forEach((item, index) => {
       const activities = (item.activities || [])
-        .map((act) => {
+        .map((act, actIdx) => {
           if (typeof act === "object" && act !== null) {
             const timeIcon =
               act.time === "Morning"
@@ -841,12 +908,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 : act.time === "Evening"
                 ? "🌙"
                 : "📍";
+            const swapBtn = unusedAttractionsPool.length
+              ? `<button type="button" class="act-swap-btn" data-day-idx="${index}" data-act-idx="${actIdx}" title="Swap with another nearby attraction">🔄 Swap</button>`
+              : "";
             return `
               <li class="activity-card">
                 <div class="act-header">
                   <span class="act-time-pill">${timeIcon} ${englishText(act.time || "Visit", "Visit")}</span>
                   <span class="act-title">${englishText(act.title, "")}</span>
                   ${act.label ? `<span class="act-tag">${englishText(act.label, "")}</span>` : ""}
+                  ${swapBtn}
                 </div>
                 ${act.desc ? `<p class="act-desc">${englishText(act.desc, "")}</p>` : ""}
                 ${act.tip ? `<div class="act-tip">💡 <strong>Tour Guide Tip:</strong> ${englishText(act.tip, "")}</div>` : ""}
@@ -855,6 +926,14 @@ document.addEventListener("DOMContentLoaded", () => {
           return `<li class="activity-plain">${englishText(act, "")}</li>`;
         })
         .join("");
+
+      const styleNoteHtml = item.styleNote
+        ? `<div class="day-style-note">🎯 <strong>Travel Style Fit:</strong> ${englishText(item.styleNote, "")}</div>`
+        : "";
+      const mealTipHtml = item.mealTip
+        ? `<div class="day-meal-tip">🍽️ <strong>Local Food Pick:</strong> ${englishText(item.mealTip, "")}</div>`
+        : "";
+
       const placeCount = (item.places || []).length;
       const mapNote = placeCount
         ? `<span class="map-note">${placeCount} place${placeCount > 1 ? "s" : ""} on map</span>`
@@ -873,12 +952,59 @@ document.addEventListener("DOMContentLoaded", () => {
               <h4 class="day-title">${item.title || ""}</h4>
               <div class="day-meta">${routeSummary}${mapNote}</div>
             </div>
+            ${styleNoteHtml}
             <ul class="activity-list">${activities}</ul>
+            ${mealTipHtml}
           </div>
         </div>`;
     });
     html += `</div>`;
     container.innerHTML = html;
+
+    // Bind activity swap buttons
+    container.querySelectorAll(".act-swap-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dIdx = parseInt(btn.dataset.dayIdx, 10);
+        const aIdx = parseInt(btn.dataset.actIdx, 10);
+        if (!unusedAttractionsPool.length || !lastPlanData?.itinerary?.[dIdx]) {
+          showToast("No backup stops remaining to swap.");
+          return;
+        }
+        const dayObj = lastPlanData.itinerary[dIdx];
+        const currentAct = dayObj.activities[aIdx];
+        if (!currentAct || typeof currentAct !== "object") return;
+
+        const replacement = unusedAttractionsPool.shift();
+        const swappedTitle = replacement.title;
+        dayObj.activities[aIdx] = {
+          ...replacement,
+          time: currentAct.time || "Visit",
+        };
+        // Return old stop to end of pool so user can toggle back
+        unusedAttractionsPool.push({
+          title: currentAct.title,
+          placeName: currentAct.placeName || currentAct.title.replace(/^Explore\s+/i, ""),
+          label: currentAct.label,
+          desc: currentAct.desc,
+          tip: currentAct.tip,
+          indoor: currentAct.indoor,
+          lat: currentAct.lat,
+          lon: currentAct.lon,
+        });
+
+        // Update day places list for map consistency if coordinates exist
+        dayObj.places = dayObj.activities
+          .filter((a) => typeof a === "object" && a.lat && a.lon)
+          .map((a) => ({
+            name: a.placeName || a.title.replace(/^Explore\s+/i, ""),
+            lat: a.lat,
+            lon: a.lon,
+          }));
+
+        renderItinerary(lastPlanData.itinerary, container, lastPlanData.modelMeta);
+        showToast(`🔄 Swapped to "${swappedTitle}"`);
+      });
+    });
   }
 
   function renderBudget(
@@ -887,6 +1013,7 @@ document.addEventListener("DOMContentLoaded", () => {
     container,
     currency,
     countryInsights,
+    budgetIntel = null,
   ) {
     const categories = [
       { key: "accommodation", label: "Accommodation", color: "#4f46e5" },
@@ -922,6 +1049,17 @@ document.addEventListener("DOMContentLoaded", () => {
       ? `<div class="budget-note">Approx local budget: ${currency.target} ${Number(currency.converted).toLocaleString("en-US")} ${countryInsights?.currencyName ? `(${countryInsights.currencyName})` : ""}</div>`
       : `<div class="budget-note">Currency conversion unavailable</div>`;
 
+    const intelHtml = budgetIntel
+      ? `
+        <div class="budget-intel-box">
+          <div class="budget-intel-top">
+            <span class="budget-health-badge" style="background:${budgetIntel.badgeColor || "#0f766e"}">${budgetIntel.statusLabel}</span>
+            <span class="budget-tier-tag">${budgetIntel.tierLabel || ""}</span>
+          </div>
+          <p class="budget-intel-advice">${budgetIntel.advice || ""}</p>
+        </div>`
+      : "";
+
     container.innerHTML = `
       <h3 class="section-label">Budget Breakdown</h3>
       <div class="budget-card">
@@ -939,6 +1077,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <span class="stat-value ${remaining >= 0 ? "positive" : "negative"}">INR ${Math.abs(remaining).toLocaleString("en-IN")} ${remaining >= 0 ? "Left" : "Over"}</span>
           </div>
         </div>
+        ${intelHtml}
         ${convertedBudget}
         <div class="budget-bars">${bars}</div>
       </div>`;
@@ -1436,6 +1575,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
     text += `\n✈️ Planned with Planora • Smart Travel Planner`;
     return text;
+  }
+
+  function generateICSContent(planData, destination, startDateStr) {
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const escapeIcs = (str) =>
+      String(str || "")
+        .replace(/\\/g, "\\\\")
+        .replace(/\n/g, "\\n")
+        .replace(/,/g, "\\,")
+        .replace(/;/g, "\\;");
+
+    const baseDate = startDateStr ? new Date(`${startDateStr}T00:00:00`) : new Date();
+    const slotHours = { Morning: [9, 12], Afternoon: [13, 16], Evening: [17, 20], "Late Evening": [20, 22] };
+
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Planora//Smart Travel Planner//EN",
+      "CALSCALE:GREGORIAN",
+    ];
+
+    (planData.itinerary || []).forEach((day, idx) => {
+      const eventDate = new Date(baseDate.getTime());
+      eventDate.setDate(baseDate.getDate() + idx);
+      const y = eventDate.getFullYear();
+      const m = pad2(eventDate.getMonth() + 1);
+      const d = pad2(eventDate.getDate());
+
+      (day.activities || []).forEach((act, actIdx) => {
+        if (typeof act !== "object" || act === null) return;
+        const [startH, endH] = slotHours[act.time] || [10, 12];
+        const dtStart = `${y}${m}${d}T${pad2(startH)}0000`;
+        const dtEnd = `${y}${m}${d}T${pad2(endH)}0000`;
+        const uid = `planora-${y}${m}${d}-${idx}-${actIdx}@planora.app`;
+        const summary = `${act.title} (${destination})`;
+        const desc = [act.desc, act.tip ? `Tip: ${act.tip}` : "", day.mealTip ? `Food Pick: ${day.mealTip}` : ""]
+          .filter(Boolean)
+          .join("\\n");
+
+        lines.push(
+          "BEGIN:VEVENT",
+          `UID:${uid}`,
+          `DTSTART:${dtStart}`,
+          `DTEND:${dtEnd}`,
+          `SUMMARY:${escapeIcs(summary)}`,
+          `DESCRIPTION:${escapeIcs(desc)}`,
+          `LOCATION:${escapeIcs(act.placeName || destination)}`,
+          "END:VEVENT",
+        );
+      });
+    });
+
+    lines.push("END:VCALENDAR");
+    return lines.join("\r\n");
   }
 
   function showToast(msg) {

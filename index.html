@@ -130,11 +130,31 @@
           </div>
         </div>
 
+        <input type="hidden" name="travelStyle" id="travel-style-input" value="solo" />
+        <input type="hidden" name="pace" id="trip-pace-input" value="balanced" />
+
         <button type="submit" id="submit-btn" class="form-submit-btn">
           <span class="btn-text">Generate Plan 🚀</span>
           <span class="btn-spinner" hidden></span>
         </button>
       </form>
+
+      <!-- Personalization Bar: Travel Style & Pace -->
+      <div class="trip-preferences-bar" id="trip-preferences-bar">
+        <div class="pref-group" role="group" aria-label="Travel Style">
+          <span class="pref-label">Style:</span>
+          <button type="button" class="pref-pill active" data-pref-type="style" data-value="solo">🧍 Solo</button>
+          <button type="button" class="pref-pill" data-pref-type="style" data-value="couple">💑 Couple</button>
+          <button type="button" class="pref-pill" data-pref-type="style" data-value="family">👨‍👩‍👧 Family</button>
+          <button type="button" class="pref-pill" data-pref-type="style" data-value="friends">👯 Friends</button>
+        </div>
+        <div class="pref-group" role="group" aria-label="Trip Pace">
+          <span class="pref-label">Pace:</span>
+          <button type="button" class="pref-pill" data-pref-type="pace" data-value="relaxed">☕ Relaxed</button>
+          <button type="button" class="pref-pill active" data-pref-type="pace" data-value="balanced">⚖️ Balanced</button>
+          <button type="button" class="pref-pill" data-pref-type="pace" data-value="packed">⚡ Packed</button>
+        </div>
+      </div>
 
       <!-- Quick Trending Destination Chips -->
       <div class="trending-destinations">
@@ -161,6 +181,9 @@
           <p id="trip-header-subtitle">Plan generated &amp; ready to share</p>
         </div>
         <div class="trip-actions-btns">
+          <button type="button" id="export-ics-btn" class="action-btn calendar-btn">
+            📅 Add to Calendar
+          </button>
           <button type="button" id="print-itinerary-btn" class="action-btn print-btn">
             🖨️ Export PDF / Print
           </button>

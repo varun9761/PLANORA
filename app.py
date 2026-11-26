@@ -19,6 +19,7 @@
 
 import os
 import sys
+import json
 import math
 import requests
 
@@ -48,6 +49,9 @@ DEFAULT_HEADERS = {
 # ── Optional API keys from .env file ──────────────────────────
 OPENTRIPMAP_KEY = os.environ.get("OPENTRIPMAP_KEY", "").strip()
 TICKETMASTER_KEY = os.environ.get("TICKETMASTER_KEY", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 
 # ── WMO weather codes → human readable ─────────────────────────
 WMO = {
@@ -178,6 +182,178 @@ FALLBACK_INR_RATES = {
     "ZAR": 0.22, "EGP": 0.58, "LKR": 3.6, "NPR": 1.6, "SAR": 0.045,
     "QAR": 0.044, "OMR": 0.0046, "PHP": 0.68, "MAD": 0.12, "KES": 1.55,
 }
+
+# ── Destination Cost-of-Living Tier Matrix (Tier 1 = High Cost, Tier 4 = High Value) ──
+COUNTRY_COST_TIERS = {
+    "CH": 1, "US": 1, "GB": 1, "FR": 1, "DE": 1, "NL": 1, "AT": 1, "BE": 1,
+    "IE": 1, "SE": 1, "NO": 1, "DK": 1, "IS": 1, "FI": 1, "AU": 1, "NZ": 1,
+    "CA": 1, "JP": 1, "SG": 1,
+    "IT": 2, "ES": 2, "PT": 2, "GR": 2, "HR": 2, "AE": 2, "QA": 2, "SA": 2,
+    "OM": 2, "KR": 2, "CZ": 2, "HU": 2, "PL": 2,
+    "TH": 3, "ID": 3, "VN": 3, "MY": 3, "MV": 3, "TR": 3, "EG": 3, "ZA": 3,
+    "BR": 3, "MX": 3, "PE": 3, "AR": 3, "MA": 3, "KE": 3, "PH": 3, "CN": 3, "RU": 3,
+    "IN": 4, "NP": 4, "LK": 4,
+}
+
+COST_TIER_PROFILES = {
+    1: {
+        "label": "Tier 1 • Premium Global Destination",
+        "min_daily": 8500,
+        "comfort_daily": 16000,
+        "luxury_daily": 30000,
+        "weights": {"accommodation": 0.46, "food": 0.22, "transport": 0.14, "activities": 0.12, "misc": 0.06},
+    },
+    2: {
+        "label": "Tier 2 • Moderate International",
+        "min_daily": 5000,
+        "comfort_daily": 9500,
+        "luxury_daily": 18500,
+        "weights": {"accommodation": 0.42, "food": 0.23, "transport": 0.14, "activities": 0.14, "misc": 0.07},
+    },
+    3: {
+        "label": "Tier 3 • Value International",
+        "min_daily": 2500,
+        "comfort_daily": 5500,
+        "luxury_daily": 11000,
+        "weights": {"accommodation": 0.36, "food": 0.25, "transport": 0.14, "activities": 0.17, "misc": 0.08},
+    },
+    4: {
+        "label": "Tier 4 • High-Value Domestic / South Asia",
+        "min_daily": 1500,
+        "comfort_daily": 3500,
+        "luxury_daily": 7500,
+        "weights": {"accommodation": 0.35, "food": 0.26, "transport": 0.15, "activities": 0.16, "misc": 0.08},
+    },
+}
+
+STYLE_MULTIPLIERS = {
+    "solo": 0.90,
+    "couple": 1.25,
+    "family": 1.45,
+    "friends": 0.85,
+}
+
+TRAVEL_STYLE_NOTES = {
+    "solo": "Flexible solo pace — prioritize walkable clusters, social cafes, and central transit hubs.",
+    "couple": "Romantic & scenic vibe — includes sunset viewpoints, boutique dining alleys, and relaxed pacing.",
+    "family": "Family-friendly routing — minimal transit hops, engaging cultural stops, and comfortable mid-day breaks.",
+    "friends": "Group adventure mode — energetic sightseeing, lively night markets, and shared dining hotspots.",
+}
+
+DEST_CUISINE_TIPS = {
+    "amritsar": [
+        "Morning: Crispy Amritsari Aloo Kulcha with chilled Sweet Lassi near Hall Bazaar.",
+        "Lunch: Iconic Langar community meal at Golden Temple or Dal Makhani at Kesar Da Dhaba.",
+        "Evening: Street-side Tandoori Paneer Tikka & Jalebi in Lawrence Road food lane.",
+    ],
+    "jaipur": [
+        "Morning: Pyaaz Kachori & Masala Chai at Rawat Mishtan Bhandar.",
+        "Lunch: Authentic Rajasthani Dal Baati Churma thali in Johari Bazaar.",
+        "Evening: Rooftop dining overlooking illuminated forts with Laal Maas or Gatte ki Sabzi.",
+    ],
+    "delhi": [
+        "Morning: Bedmi Puri & Halwa in Old Delhi's Chandni Chowk lanes.",
+        "Lunch: Chole Bhature in Paharganj or Paranthas at Paranthe Wali Gali.",
+        "Evening: Kebabs around Jama Masjid or gourmet fusion cafes in Khan Market.",
+    ],
+    "goa": [
+        "Morning: Poee bread omelette & filter coffee at a sunny beach shack.",
+        "Lunch: Authentic Goan Fish Curry Rice or Chicken Xacuti by the coast.",
+        "Evening: Fresh grilled seafood & Bebinca dessert overlooking the Arabian Sea.",
+    ],
+    "paris": [
+        "Morning: Warm butter croissant & espresso at a neighborhood boulangerie.",
+        "Lunch: Bistro Steak Frites or savory buckwheat galette in Le Marais.",
+        "Evening: Artisanal macarons, French onion soup, and Seine-side cafe culture.",
+    ],
+    "tokyo": [
+        "Morning: Fresh nigiri sushi & matcha desserts near Tsukiji Outer Market.",
+        "Lunch: Rich Tonkotsu Ramen or crispy Tonkatsu in Shinjuku.",
+        "Evening: Izakaya yakitori skewers and takoyaki in atmospheric lantern alleys.",
+    ],
+    "rome": [
+        "Morning: Cornetto pastry & cappuccino standing at a classic espresso bar.",
+        "Lunch: Roman-style Cacio e Pepe or Carbonara near Campo de' Fiori.",
+        "Evening: Thin-crust Pizza al Taglio and artisan pistachio gelato in Trastevere.",
+    ],
+    "new york": [
+        "Morning: Classic New York bagel with lox & cream cheese in Manhattan.",
+        "Lunch: Iconic dollar-slice or wood-fired pizza & pastrami deli sandwich.",
+        "Evening: Diverse street eats in Chelsea Market or rooftop dining in SoHo.",
+    ],
+    "dubai": [
+        "Morning: Arabic Shakshuka, Karak Chai & fresh flatbreads in Al Fahidi.",
+        "Lunch: Authentic Emirati Machboos or Levantine mezze platters.",
+        "Evening: Waterfront dining by Dubai Fountain or spiced street shawarma in Deira.",
+    ],
+    "bali": [
+        "Morning: Tropical smoothie bowls & Balinese Kopi Tubruk coffee in Ubud.",
+        "Lunch: Nasi Campur platter or Crispy Duck (Bebek Betutu) overlooking rice fields.",
+        "Evening: Fresh Jimbaran Bay grilled seafood on the beach at sunset.",
+    ],
+}
+
+
+def evaluate_budget_intelligence(budget: int, num_days: int, country_code: str, travel_style: str = "solo") -> dict:
+    """Compute realistic destination cost-of-living feasibility and dynamic allocation."""
+    tier_id = COUNTRY_COST_TIERS.get((country_code or "").upper(), 3)
+    profile = COST_TIER_PROFILES[tier_id]
+    mult = STYLE_MULTIPLIERS.get(travel_style, 1.0)
+
+    min_daily = round(profile["min_daily"] * mult)
+    comfort_daily = round(profile["comfort_daily"] * mult)
+    luxury_daily = round(profile["luxury_daily"] * mult)
+
+    days = max(1, num_days)
+    daily_budget = round(budget / days) if budget > 0 else 0
+
+    weights = profile["weights"]
+    breakdown = {
+        k: round(budget * w)
+        for k, w in weights.items()
+    }
+
+    if budget <= 0:
+        status = "unassigned"
+        status_label = "No Budget Set"
+        badge_color = "#64748b"
+        advice = f"Estimated comfortable budget for {days} days ({travel_style}): ~₹{(comfort_daily * days):,}."
+    elif daily_budget >= luxury_daily:
+        status = "luxury"
+        status_label = "Luxury & Premium"
+        badge_color = "#8b5cf6"
+        advice = f"Generous ₹{daily_budget:,}/day allows 5-star stays, private transfers, and fine dining."
+    elif daily_budget >= comfort_daily:
+        status = "comfortable"
+        status_label = "Comfortable Budget"
+        badge_color = "#10b981"
+        advice = f"Well-balanced ₹{daily_budget:,}/day covers boutique stays, guided tours, and great dining."
+    elif daily_budget >= min_daily:
+        status = "tight"
+        status_label = "Smart Backpacker / Tight"
+        badge_color = "#f59e0b"
+        advice = f"₹{daily_budget:,}/day is tight for this destination. Prioritize hostels, public transit & street food."
+    else:
+        status = "underfunded"
+        status_label = "Below Recommended"
+        badge_color = "#ef4444"
+        advice = f"₹{daily_budget:,}/day is below the ₹{min_daily:,}/day baseline. Consider shortening trip or raising budget to ₹{(min_daily * days):,}."
+
+    return {
+        "breakdown": breakdown,
+        "intelligence": {
+            "tier": tier_id,
+            "tierLabel": profile["label"],
+            "status": status,
+            "statusLabel": status_label,
+            "badgeColor": badge_color,
+            "dailyBudget": daily_budget,
+            "recommendedDaily": comfort_daily,
+            "minDaily": min_daily,
+            "recommendedTotal": comfort_daily * days,
+            "advice": advice,
+        },
+    }
 
 
 def api_get(url: str, **kwargs):
@@ -1081,9 +1257,9 @@ def generate_contextual_attractions(destination: str, lat: float, lon: float, co
     return results
 
 
-def fetch_attractions(lat: float, lon: float, num_days: int, destination: str = "") -> list:
+def fetch_attractions(lat: float, lon: float, num_days: int, destination: str = "", stops_per_day: int = 3) -> list:
     """Discover attractions with Curated Tour Guide, Wikipedia, Nominatim, and contextual backup."""
-    needed = max(8, num_days * 3)
+    needed = max(12, num_days * stops_per_day + 5)
     places = []
     seen_names = set()
 
@@ -1164,18 +1340,304 @@ def fetch_attractions(lat: float, lon: float, num_days: int, destination: str = 
     return places
 
 
-def build_itinerary(attractions: list, num_days: int, start_date: str, daily_weather: list) -> list:
-    """Organize attractions into structured tour-guide quality daily itinerary cards."""
-    # Prioritize higher-rated places (Curated=5, Wikipedia=4, Nominatim=3, etc.)
-    attractions.sort(key=lambda x: x.get("rate", 0), reverse=True)
-    per_day = max(2, min(3, len(attractions) // max(num_days, 1)))
+def classify_attraction(place: dict) -> dict:
+    """Determine indoor/outdoor nature and ideal time-of-day slot for an attraction."""
+    text = f"{place.get('kinds', '')} {place.get('name', '')}".lower()
+    indoor_keywords = ("museum", "gallery", "palace", "mall", "science", "cathedral", "aquarium", "theater", "cultural", "library")
+    evening_keywords = ("sunset", "bazaar", "market", "night", "promenade", "lounge", "culinary", "times square", "fountain", "pier")
+    morning_keywords = ("fort", "park", "garden", "natural", "viewpoint", "temple", "spiritual", "beach", "terrace", "sanctuary", "bridge")
+
+    is_indoor = any(kw in text for kw in indoor_keywords)
+    if any(kw in text for kw in evening_keywords):
+        preferred_slot = "Evening"
+    elif any(kw in text for kw in morning_keywords):
+        preferred_slot = "Morning"
+    else:
+        preferred_slot = "Afternoon"
+
+    return {"is_indoor": is_indoor, "preferred_slot": preferred_slot}
+
+
+def cluster_attractions_by_day(
+    attractions: list,
+    num_days: int,
+    stops_per_day: int,
+    origin_lat: float,
+    origin_lon: float,
+    daily_weather: list,
+) -> tuple:
+    """
+    Group attractions into geographic proximity clusters (1 per day),
+    apply weather-reactive indoor prioritization for rainy days,
+    and sequence stops within each day by time-of-day & nearest-neighbor routing.
+    Returns (day_buckets, unused_pool).
+    """
+    if not attractions:
+        return [[] for _ in range(num_days)], []
+
+    # Sort primarily by authority rating so must-see sights stay in the active plan
+    ranked = sorted(attractions, key=lambda x: x.get("rate", 0), reverse=True)
+    active_limit = min(len(ranked), num_days * stops_per_day)
+    active = ranked[:active_limit]
+    unused_pool = ranked[active_limit:]
+
+    # Annotate coordinates & metadata
+    for p in active:
+        pt = p.get("point", {})
+        if pt.get("lat") is None or pt.get("lon") is None:
+            p["point"] = {"lat": origin_lat, "lon": origin_lon}
+
+    if num_days == 1 or len(active) <= stops_per_day:
+        buckets = [active] + [[] for _ in range(num_days - 1)]
+    else:
+        # K-Means geographic district centroids (k = num_days)
+        # Farthest-point seed initialization for clean spatial separation
+        centroids = [(active[0]["point"]["lat"], active[0]["point"]["lon"])]
+        for _ in range(1, num_days):
+            best_pt = None
+            best_dist = -1.0
+            for cand in active:
+                c_lat, c_lon = cand["point"]["lat"], cand["point"]["lon"]
+                min_d = min(haversine_distance_km(c_lat, c_lon, cen[0], cen[1]) for cen in centroids)
+                if min_d > best_dist:
+                    best_dist = min_d
+                    best_pt = (c_lat, c_lon)
+            centroids.append(best_pt or (origin_lat, origin_lon))
+
+        # 6 fast K-Means iterations
+        for _ in range(6):
+            temp_groups = [[] for _ in range(num_days)]
+            for item in active:
+                ilat, ilon = item["point"]["lat"], item["point"]["lon"]
+                nearest_idx = min(
+                    range(num_days),
+                    key=lambda idx: haversine_distance_km(ilat, ilon, centroids[idx][0], centroids[idx][1]),
+                )
+                temp_groups[nearest_idx].append(item)
+            for idx, grp in enumerate(temp_groups):
+                if grp:
+                    avg_lat = sum(x["point"]["lat"] for x in grp) / len(grp)
+                    avg_lon = sum(x["point"]["lon"] for x in grp) / len(grp)
+                    centroids[idx] = (avg_lat, avg_lon)
+
+        # Balanced capacity assignment so every day receives balanced stops
+        buckets = [[] for _ in range(num_days)]
+        min_per_day = max(1, len(active) // num_days)
+        max_per_day = min_per_day + (1 if len(active) % num_days else 0)
+        unassigned = list(active)
+
+        # First pass: assign closest items up to min_per_day
+        for day_i in range(num_days):
+            c_lat, c_lon = centroids[day_i]
+            unassigned.sort(key=lambda x: haversine_distance_km(x["point"]["lat"], x["point"]["lon"], c_lat, c_lon))
+            while len(buckets[day_i]) < min_per_day and unassigned:
+                buckets[day_i].append(unassigned.pop(0))
+
+        # Second pass: distribute remaining items to nearest day under max_per_day
+        for item in unassigned:
+            ilat, ilon = item["point"]["lat"], item["point"]["lon"]
+            eligible = [i for i in range(num_days) if len(buckets[i]) < max_per_day]
+            if not eligible:
+                eligible = list(range(num_days))
+            best_i = min(
+                eligible,
+                key=lambda idx: haversine_distance_km(ilat, ilon, centroids[idx][0], centroids[idx][1]),
+            )
+            buckets[best_i].append(item)
+
+    # Weather-reactive swap: move indoor spots onto rainy days when clear days hold them
+    if daily_weather and num_days > 1:
+        rain_keywords = ("rain", "drizzle", "shower", "thunderstorm", "snow")
+        rainy_days = [
+            i for i in range(min(num_days, len(daily_weather)))
+            if any(rk in (daily_weather[i].get("condition") or "").lower() for rk in rain_keywords)
+        ]
+        clear_days = [i for i in range(num_days) if i not in rainy_days]
+        for r_idx in rainy_days:
+            for c_idx in clear_days:
+                indoor_in_clear = next((p for p in buckets[c_idx] if classify_attraction(p)["is_indoor"]), None)
+                outdoor_in_rain = next((p for p in buckets[r_idx] if not classify_attraction(p)["is_indoor"]), None)
+                if indoor_in_clear and outdoor_in_rain:
+                    buckets[c_idx].remove(indoor_in_clear)
+                    buckets[r_idx].remove(outdoor_in_rain)
+                    buckets[r_idx].append(indoor_in_clear)
+                    buckets[c_idx].append(outdoor_in_rain)
+
+    # Intra-day ordering: Morning -> Afternoon -> Evening, breaking ties by nearest-neighbor path
+    slot_rank = {"Morning": 0, "Afternoon": 1, "Evening": 2}
+    ordered_buckets = []
+    for grp in buckets:
+        if len(grp) <= 1:
+            ordered_buckets.append(grp)
+            continue
+        remaining = list(grp)
+        ordered = []
+        cur_lat, cur_lon = origin_lat, origin_lon
+        while remaining:
+            remaining.sort(
+                key=lambda x: (
+                    slot_rank.get(classify_attraction(x)["preferred_slot"], 1),
+                    haversine_distance_km(cur_lat, cur_lon, x["point"]["lat"], x["point"]["lon"]),
+                )
+            )
+            chosen = remaining.pop(0)
+            ordered.append(chosen)
+            cur_lat, cur_lon = chosen["point"]["lat"], chosen["point"]["lon"]
+        ordered_buckets.append(ordered)
+
+    return ordered_buckets, unused_pool
+
+
+def get_cuisine_highlights(destination: str, day_idx: int, country_name: str = "") -> str:
+    """Return authentic regional culinary highlight for the given destination & day."""
+    clean = (destination or "").lower()
+    for key, tips in DEST_CUISINE_TIPS.items():
+        if key in clean:
+            return tips[day_idx % len(tips)]
+    defaults = [
+        f"Try a traditional local breakfast dish or bakery specialty in {destination.title() or 'town'}.",
+        f"Explore a bustling neighborhood market or authentic family-run restaurant for regional lunch.",
+        f"Sample signature street food or an atmospheric evening cafe specialty.",
+    ]
+    if country_name:
+        defaults[1] = f"Book or walk into a top-rated local spot serving authentic {country_name} cuisine."
+    return defaults[day_idx % len(defaults)]
+
+
+def enhance_itinerary_with_ai(
+    itinerary: list,
+    destination: str,
+    travel_style: str,
+    pace: str,
+    budget_intel: dict,
+) -> tuple:
+    """
+    Optionally enrich descriptions, insider tips, and meal recommendations
+    using Gemini 2.0 Flash / Groq / OpenAI grounded strictly on real discovered stops.
+    Falls back cleanly to the deterministic engine if no key is configured or on any failure.
+    Returns (enhanced_itinerary, ai_powered_bool, model_name).
+    """
+    if not (GEMINI_API_KEY or GROQ_API_KEY or OPENAI_API_KEY):
+        return itinerary, False, "Planora Smart Clustering v2 (Algorithmic)"
+
+    compact_days = []
+    for day in itinerary:
+        stops = [
+            {"title": act["title"], "time": act["time"]}
+            for act in day.get("activities", [])
+            if isinstance(act, dict)
+        ]
+        compact_days.append({"day": day["day"], "stops": stops})
+
+    prompt = (
+        f"You are an expert travel concierge for {destination}. "
+        f"Traveler style: {travel_style}. Pace: {pace}. Budget level: {budget_intel.get('statusLabel', 'Moderate')}.\n"
+        f"Enhance these EXACT verified daily itineraries without removing or inventing stop coordinates. "
+        f"Return STRICT valid JSON only (no markdown fences) matching:\n"
+        f'{{"days": [{{"day": 1, "theme": "Short punchy theme", "mealTip": "Specific iconic local food spot/dish to try", '
+        f'"tips": ["One concise insider tip per stop in same order"]}}]}}\n'
+        f"Input stops: {json.dumps(compact_days)}"
+    )
+
+    raw_text = ""
+    model_used = ""
+    try:
+        if GEMINI_API_KEY:
+            model_used = "Gemini 2.0 Flash (Grounded RAG)"
+            resp = HTTP.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
+                },
+                timeout=6,
+            )
+            if resp.status_code == 200:
+                candidates = resp.json().get("candidates") or []
+                if candidates:
+                    raw_text = candidates[0]["content"]["parts"][0]["text"]
+        elif GROQ_API_KEY:
+            model_used = "Groq Llama 3.3 (Grounded RAG)"
+            resp = HTTP.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.4,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=6,
+            )
+            if resp.status_code == 200:
+                raw_text = resp.json()["choices"][0]["message"]["content"]
+        elif OPENAI_API_KEY:
+            model_used = "GPT-4o Mini (Grounded RAG)"
+            resp = HTTP.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.4,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=6,
+            )
+            if resp.status_code == 200:
+                raw_text = resp.json()["choices"][0]["message"]["content"]
+
+        if raw_text:
+            parsed = json.loads(raw_text)
+            ai_days = {d.get("day"): d for d in (parsed.get("days") or [])}
+            for day in itinerary:
+                ai_day = ai_days.get(day["day"])
+                if not ai_day:
+                    continue
+                if ai_day.get("theme"):
+                    day["title"] = ai_day["theme"]
+                if ai_day.get("mealTip"):
+                    day["mealTip"] = ai_day["mealTip"]
+                ai_tips = ai_day.get("tips") or []
+                obj_idx = 0
+                for act in day.get("activities", []):
+                    if isinstance(act, dict):
+                        if obj_idx < len(ai_tips) and ai_tips[obj_idx]:
+                            act["tip"] = ai_tips[obj_idx]
+                        obj_idx += 1
+            return itinerary, True, model_used
+    except Exception as e:
+        print(f"[enhance_itinerary_with_ai fallback] {e}")
+
+    return itinerary, False, "Planora Smart Clustering v2 (Algorithmic)"
+
+
+def build_itinerary(
+    attractions: list,
+    num_days: int,
+    start_date: str,
+    daily_weather: list,
+    origin_lat: float = 0.0,
+    origin_lon: float = 0.0,
+    destination: str = "",
+    country_name: str = "",
+    travel_style: str = "solo",
+    pace: str = "balanced",
+) -> tuple:
+    """Organize attractions into spatially clustered, weather-aware daily itinerary cards."""
+    pace_map = {"relaxed": 2, "balanced": 3, "packed": 4}
+    stops_per_day = pace_map.get(pace, 3)
+
+    day_buckets, unused_pool = cluster_attractions_by_day(
+        attractions, num_days, stops_per_day, origin_lat, origin_lon, daily_weather
+    )
 
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
     itinerary = []
-    periods = ["Morning", "Afternoon", "Evening"]
+    periods = ["Morning", "Afternoon", "Evening", "Late Evening"]
 
     for day_idx in range(num_days):
-        day_places = attractions[day_idx * per_day: (day_idx + 1) * per_day]
+        day_places = day_buckets[day_idx] if day_idx < len(day_buckets) else []
         date_str = (start_dt + timedelta(days=day_idx)).strftime("%b %d")
         theme = DAY_THEMES[day_idx % len(DAY_THEMES)]
 
@@ -1191,17 +1653,22 @@ def build_itinerary(attractions: list, num_days: int, start_date: str, daily_wea
             label = kinds.split(",")[0].replace("_", " ").title() if kinds else "Sight"
             desc = place.get("description", "")
             tip = place.get("tip", "")
-            time_slot = periods[p_idx % len(periods)]
+            meta = classify_attraction(place)
+            time_slot = periods[p_idx] if p_idx < len(periods) else meta["preferred_slot"]
+            pt = place.get("point", {})
 
             activities.append({
                 "time": time_slot,
                 "title": f"Explore {name}",
+                "placeName": name,
                 "label": label,
                 "desc": desc,
                 "tip": tip,
+                "indoor": meta["is_indoor"],
+                "lat": pt.get("lat"),
+                "lon": pt.get("lon"),
             })
 
-            pt = place.get("point", {})
             if pt.get("lat") and pt.get("lon"):
                 place_coords.append({"name": name, "lat": pt["lat"], "lon": pt["lon"]})
 
@@ -1223,11 +1690,31 @@ def build_itinerary(attractions: list, num_days: int, start_date: str, daily_wea
             "day": day_idx + 1,
             "date": date_str,
             "title": theme,
+            "mealTip": get_cuisine_highlights(destination, day_idx, country_name),
+            "styleNote": TRAVEL_STYLE_NOTES.get(travel_style, "") if day_idx == 0 else "",
             "activities": activities,
             "places": place_coords,
         })
 
-    return itinerary
+    # Serialize unused pool for instant client-side activity swapping
+    serialized_unused = []
+    for p in unused_pool:
+        name = p.get("name", "").strip()
+        kinds = p.get("kinds", "")
+        pt = p.get("point", {})
+        meta = classify_attraction(p)
+        serialized_unused.append({
+            "title": f"Explore {name}",
+            "placeName": name,
+            "label": kinds.split(",")[0].replace("_", " ").title() if kinds else "Sight",
+            "desc": p.get("description", ""),
+            "tip": p.get("tip", ""),
+            "indoor": meta["is_indoor"],
+            "lat": pt.get("lat"),
+            "lon": pt.get("lon"),
+        })
+
+    return itinerary, serialized_unused
 
 
 def enrich_itinerary_with_routes(itinerary: list, origin_lat: float, origin_lon: float) -> list:
@@ -1396,12 +1883,20 @@ def destination_search():
 
 @app.route("/plan-trip", methods=["POST"])
 def plan_trip():
-    """Generate itinerary, weather forecast, budget breakdown, and map places."""
+    """Generate spatially clustered, weather-aware itinerary, budget intelligence, and map places."""
     body = request.json or {}
     destination = body.get("destination", "").strip()
     start_date = body.get("startDate") or datetime.now().strftime("%Y-%m-%d")
     num_days = max(1, int(body.get("numDays", 3)))
     budget = int(body.get("budget", 0))
+    travel_style = (body.get("travelStyle") or "solo").strip().lower()
+    if travel_style not in STYLE_MULTIPLIERS:
+        travel_style = "solo"
+    pace = (body.get("pace") or "balanced").strip().lower()
+    if pace not in ("relaxed", "balanced", "packed"):
+        pace = "balanced"
+
+    stops_per_day = {"relaxed": 2, "balanced": 3, "packed": 4}[pace]
 
     if not destination:
         return jsonify({"error": "destination is required"}), 400
@@ -1415,42 +1910,60 @@ def plan_trip():
     lat = dest_meta["lat"]
     lon = dest_meta["lon"]
 
-    # 2. Weather Forecast (Open-Meteo)
-    weather = fetch_weather(lat, lon, start_date, num_days)
-    daily_weather = weather.pop("_daily", [])
-
-    # 3. Discover Attractions
-    attractions = fetch_attractions(lat, lon, num_days, destination=destination)
-
-    # 4. Build Multi-Day Itinerary
-    itinerary = build_itinerary(attractions, num_days, start_date, daily_weather)
-    itinerary = enrich_itinerary_with_routes(itinerary, lat, lon)
-
-    # 5. Budget Allocation Split
-    budget_breakdown = {
-        "accommodation": round(budget * 0.40),
-        "food": round(budget * 0.20),
-        "transport": round(budget * 0.15),
-        "activities": round(budget * 0.15),
-        "misc": round(budget * 0.10),
-    }
-
-    # 6. Country Profile & Currency Conversion
+    # 2. Country Profile & Dynamic Cost-of-Living Budget Intelligence
     country_profile = fetch_country_profile(
         dest_meta.get("country", ""),
         dest_meta.get("country_code", "")
     )
+    budget_eval = evaluate_budget_intelligence(
+        budget, num_days, dest_meta.get("country_code", ""), travel_style
+    )
+    budget_breakdown = budget_eval["breakdown"]
+    budget_intelligence = budget_eval["intelligence"]
     currency = fetch_currency_conversion(budget, country_profile.get("currencyCode"))
+
+    # 3. Weather Forecast (Open-Meteo)
+    weather = fetch_weather(lat, lon, start_date, num_days)
+    daily_weather = weather.pop("_daily", [])
+
+    # 4. Discover Attractions (including reserve pool for activity swaps)
+    attractions = fetch_attractions(lat, lon, num_days, destination=destination, stops_per_day=stops_per_day)
+
+    # 5. Build Clustered, Weather-Aware Multi-Day Itinerary
+    itinerary, unused_attractions = build_itinerary(
+        attractions,
+        num_days,
+        start_date,
+        daily_weather,
+        origin_lat=lat,
+        origin_lon=lon,
+        destination=destination,
+        country_name=dest_meta.get("country", ""),
+        travel_style=travel_style,
+        pace=pace,
+    )
+    itinerary, ai_powered, model_engine = enhance_itinerary_with_ai(
+        itinerary, destination, travel_style, pace, budget_intelligence
+    )
+    itinerary = enrich_itinerary_with_routes(itinerary, lat, lon)
 
     return jsonify({
         "weather": weather,
         "itinerary": itinerary,
+        "unusedAttractions": unused_attractions,
         "budgetBreakdown": budget_breakdown,
+        "budgetIntelligence": budget_intelligence,
         "attractions": serialize_attractions(attractions),
         "currency": currency,
         "destinationMeta": dest_meta,
         "countryInsights": country_profile,
         "coordinates": {"lat": lat, "lon": lon},
+        "modelMeta": {
+            "engine": model_engine,
+            "aiPowered": ai_powered,
+            "travelStyle": travel_style,
+            "pace": pace,
+        },
     })
 
 
